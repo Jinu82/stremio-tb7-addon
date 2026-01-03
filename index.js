@@ -3,24 +3,22 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 
-// Pobieranie danych logowania z bezpiecznych zmiennych Render
 const TB7_LOGIN = process.env.TB7_LOGIN; 
 const TB7_PASSWORD = process.env.TB7_PASSWORD;
 
 const builder = new addonBuilder({
     id: "pl.tb7.bridge.secure.v1", 
-    version: "1.4.1",
+    version: "1.4.2",
     name: "TB7 Secure Bridge",
     description: "Prywatny mostek do TB7.pl z obsługą Environment Variables",
     resources: ["stream"],
     types: ["movie", "series"],
-    idPrefixes: ["tt"]
+    idPrefixes: ["tt"],
+    catalogs: []
 });
 
-// Funkcja logowania i wyszukiwania na TB7
 async function searchTB7(query) {
     try {
-        // Tworzymy instancję z obsługą ciasteczek (sesji)
         const instance = axios.create({ 
             baseURL: 'https://tb7.pl',
             timeout: 10000,
@@ -30,26 +28,22 @@ async function searchTB7(query) {
             }
         });
 
-        // 1. Logowanie
         console.log(`Próba logowania użytkownika: ${TB7_LOGIN}`);
         const loginResponse = await instance.post('/login', qs.stringify({ 
             login: TB7_LOGIN, 
             password: TB7_PASSWORD 
         }));
 
-        // Sprawdzamy, czy logowanie nie zwróciło błędu (np. złe hasło)
         if (loginResponse.data.includes("Błędny login lub hasło")) {
             console.log("BŁĄD: Niepoprawne dane logowania do TB7!");
             return [];
         }
 
-        // 2. Wyszukiwanie pliku
         console.log(`Szukanie frazy: ${query}`);
         const searchRes = await instance.get(`/search?q=${encodeURIComponent(query)}`);
         const $ = cheerio.load(searchRes.data);
         const streams = [];
 
-        // 3. Parsowanie tabeli wyników
         $("table tr").each((i, el) => {
             const row = $(el).find("td");
             if (row.length > 0) {
@@ -63,6 +57,38 @@ async function searchTB7(query) {
                         title: `📥 ${title}\n📂 Rozmiar: ${size}`,
                         url: `https://tb7.pl${link}`
                     });
+                }
+            }
+        });
+
+        return streams;
+    } catch (e) {
+        console.log("Błąd podczas komunikacji z TB7:", e.message);
+        return [];
+    }
+}
+
+builder.defineStreamHandler(async (args) => {
+    console.log(`--- Nowe żądanie: ${args.id} ---`);
+    try {
+        const type = args.type;
+        const imdbId = args.id.split(':')[1];
+        const metaRes = await axios.get(`https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`);
+        
+        const movieTitle = metaRes.data.meta.name;
+        console.log(`Znaleziony tytuł w bazie: ${movieTitle}`);
+
+        const streams = await searchTB7(movieTitle);
+        console.log(`Zwracam liczbę źródeł: ${streams.length}`);
+        
+        return { streams: streams };
+    } catch (err) {
+        console.log("Błąd pobierania metadanych:", err.message);
+        return { streams: [] };
+    }
+});
+
+serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
                 }
             }
         });
