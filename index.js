@@ -3,14 +3,15 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 
+// Pobieranie danych logowania ze zmiennych środowiskowych Render
 const TB7_LOGIN = process.env.TB7_LOGIN; 
 const TB7_PASSWORD = process.env.TB7_PASSWORD;
 
 const builder = new addonBuilder({
     id: "pl.tb7.bridge.secure.v1", 
-    version: "1.4.2",
+    version: "1.4.3",
     name: "TB7 Secure Bridge",
-    description: "Prywatny mostek do TB7.pl z obsługą Environment Variables",
+    description: "Prywatny mostek do TB7.pl",
     resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
@@ -63,66 +64,29 @@ async function searchTB7(query) {
 
         return streams;
     } catch (e) {
-        console.log("Błąd podczas komunikacji z TB7:", e.message);
+        console.log("Błąd komunikacji z TB7:", e.message);
         return [];
     }
 }
 
 builder.defineStreamHandler(async (args) => {
-    console.log(`--- Nowe żądanie: ${args.id} ---`);
+    console.log(`--- Zapytanie: ${args.id} ---`);
     try {
         const type = args.type;
         const imdbId = args.id.split(':')[1];
         const metaRes = await axios.get(`https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`);
         
         const movieTitle = metaRes.data.meta.name;
-        console.log(`Znaleziony tytuł w bazie: ${movieTitle}`);
+        console.log(`Szukam: ${movieTitle}`);
 
         const streams = await searchTB7(movieTitle);
-        console.log(`Zwracam liczbę źródeł: ${streams.length}`);
+        console.log(`Znaleziono: ${streams.length}`);
         
         return { streams: streams };
     } catch (err) {
-        console.log("Błąd pobierania metadanych:", err.message);
+        console.log("Błąd:", err.message);
         return { streams: [] };
     }
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
-                }
-            }
-        });
-
-        return streams;
-    } catch (e) {
-        console.log("Błąd podczas komunikacji z TB7:", e.message);
-        return [];
-    }
-}
-
-// Obsługa żądań o strumienie od Stremio
-builder.defineStreamHandler(async (args) => {
-    console.log(`--- Nowe żądanie: ${args.id} ---`);
-    
-    try {
-        // Pobieramy czytelną nazwę filmu z API Stremio (Cinemeta)
-        const type = args.type;
-        const imdbId = args.id.split(':')[1];
-        const metaRes = await axios.get(`https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`);
-        
-        const movieTitle = metaRes.data.meta.name;
-        console.log(`Znaleziony tytuł w bazie: ${movieTitle}`);
-
-        const streams = await searchTB7(movieTitle);
-        console.log(`Zwracam liczbę źródeł: ${streams.length}`);
-        
-        return { streams: streams };
-    } catch (err) {
-        console.log("Błąd pobierania metadanych:", err.message);
-        return { streams: [] };
-    }
-});
-
-// Start serwera
-serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
- 
