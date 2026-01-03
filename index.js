@@ -7,82 +7,60 @@ const TB7_LOGIN = 'Jinu82'; // <--- WPISZ TUTAJ
 const TB7_PASSWORD = 'skCvR5E#KYdR5V#'; // <--- WPISZ TUTAJ
 
 const builder = new addonBuilder({
-    id: "org.tb7.fanfilm.logic",
-    version: "1.1.0",
-    name: "TB7 Professional Bridge",
+    id: "pl.tb7.bridge.v3", // Zmiana ID wymusza na Stremio odświeżenie listy
+    version: "1.2.0",
+    name: "Moje TB7 Premium",
+    description: "Prywatny mostek do TB7.pl",
     resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
     catalogs: []
 });
 
-async function getMeta(id) {
-    try {
-        const type = id.split(':')[0];
-        const res = await axios.get(`https://v3-cinemeta.strem.io/meta/${type}/${id.split(':')[1]}.json`);
-        return res.data.meta;
-    } catch (e) { return null; }
-}
-
 builder.defineStreamHandler(async (args) => {
-    const meta = await getMeta(args.id);
-    const imdbId = args.id.split(':')[1];
-    if (!meta) return { streams: [] };
-
-    console.log(`--- Zapytanie dla: ${meta.name} (IMDb: ${imdbId}) ---`);
+    console.log("Stremio pyta o ID:", args.id);
+    
+    // Szybka odpowiedź dla Stremio, żeby nie było timeoutu
+    const streams = [];
 
     try {
-        // Używamy "Cookie Jar" do zachowania sesji
         const instance = axios.create({ 
             baseURL: 'https://tb7.pl',
-            headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://tb7.pl/'
-            },
-            withCredentials: true
+            timeout: 5000, // Krótki czas oczekiwania
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
-        // 1. Logowanie z pobraniem ciasteczek
+        // Logowanie
         await instance.post('/login', qs.stringify({ login: TB7_LOGIN, password: TB7_PASSWORD }));
-
-        // 2. Szukanie - najpierw po IMDb ID, potem po tytule (tak robi FanFilm)
-        let searchRes = await instance.get(`/search?q=${imdbId}`);
-        let $ = cheerio.load(searchRes.data);
         
-        // Jeśli brak wyników po IMDb, szukaj po nazwie
-        if ($("table tr").length <= 1) {
-            console.log("Brak wyników po ID, szukam po tytule...");
-            searchRes = await instance.get(`/search?q=${encodeURIComponent(meta.name)}`);
-            $ = cheerio.load(searchRes.data);
-        }
+        // Pobieranie tytułu z Cinemeta (zewnętrzne API Stremio)
+        const metaRes = await axios.get(`https://v3-cinemeta.strem.io/meta/${args.type}/${args.id.split(':')[1]}.json`);
+        const query = metaRes.data.meta.name;
 
-        const streams = [];
+        // Szukanie na TB7
+        const searchRes = await instance.get(`/search?q=${encodeURIComponent(query)}`);
+        const $ = cheerio.load(searchRes.data);
 
-        // 3. Wyciąganie linków
         $("table tr").each((i, el) => {
             const row = $(el).find("td");
             if (row.length > 0) {
                 const title = $(row[0]).text().trim();
-                const downloadLink = $(row[0]).find("a[href*='download']").attr("href");
-                const size = $(row[2]).text().trim() || "N/A";
-
-                if (downloadLink) {
+                const link = $(row[0]).find("a").attr("href");
+                if (link && link.includes('download')) {
                     streams.push({
-                        name: "TB7 Premium",
-                        title: `${title}\n💾 Rozmiar: ${size}`,
-                        url: `https://tb7.pl${downloadLink}`
+                        name: "TB7",
+                        title: `⚡ ${title}`,
+                        url: `https://tb7.pl${link}`
                     });
                 }
             }
         });
 
-        console.log(`Zakończono: znaleziono ${streams.length} źródeł.`);
-        return { streams };
-
     } catch (e) {
-        console.log("Błąd:", e.message);
-        return { streams: [] };
+        console.log("Błąd serwera:", e.message);
     }
+
+    return { streams: streams };
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
