@@ -3,64 +3,100 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 
-const TB7_LOGIN = 'Jinu82'; // <--- WPISZ TUTAJ
-const TB7_PASSWORD = 'skCvR5E#KYdR5V#'; // <--- WPISZ TUTAJ
+// Pobieranie danych logowania z bezpiecznych zmiennych Render
+const TB7_LOGIN = process.env.TB7_LOGIN; 
+const TB7_PASSWORD = process.env.TB7_PASSWORD;
 
 const builder = new addonBuilder({
-    id: "pl.tb7.bridge.v3", // Zmiana ID wymusza na Stremio odświeżenie listy
-    version: "1.2.0",
-    name: "Moje TB7 Premium",
-    description: "Prywatny mostek do TB7.pl",
+    id: "pl.tb7.bridge.secure.v1", 
+    version: "1.4.1",
+    name: "TB7 Secure Bridge",
+    description: "Prywatny mostek do TB7.pl z obsługą Environment Variables",
     resources: ["stream"],
     types: ["movie", "series"],
-    idPrefixes: ["tt"],
-    catalogs: []
+    idPrefixes: ["tt"]
 });
 
-builder.defineStreamHandler(async (args) => {
-    console.log("Stremio pyta o ID:", args.id);
-    
-    // Szybka odpowiedź dla Stremio, żeby nie było timeoutu
-    const streams = [];
-
+// Funkcja logowania i wyszukiwania na TB7
+async function searchTB7(query) {
     try {
+        // Tworzymy instancję z obsługą ciasteczek (sesji)
         const instance = axios.create({ 
             baseURL: 'https://tb7.pl',
-            timeout: 5000, // Krótki czas oczekiwania
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            timeout: 10000,
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://tb7.pl/'
+            }
         });
 
-        // Logowanie
-        await instance.post('/login', qs.stringify({ login: TB7_LOGIN, password: TB7_PASSWORD }));
-        
-        // Pobieranie tytułu z Cinemeta (zewnętrzne API Stremio)
-        const metaRes = await axios.get(`https://v3-cinemeta.strem.io/meta/${args.type}/${args.id.split(':')[1]}.json`);
-        const query = metaRes.data.meta.name;
+        // 1. Logowanie
+        console.log(`Próba logowania użytkownika: ${TB7_LOGIN}`);
+        const loginResponse = await instance.post('/login', qs.stringify({ 
+            login: TB7_LOGIN, 
+            password: TB7_PASSWORD 
+        }));
 
-        // Szukanie na TB7
+        // Sprawdzamy, czy logowanie nie zwróciło błędu (np. złe hasło)
+        if (loginResponse.data.includes("Błędny login lub hasło")) {
+            console.log("BŁĄD: Niepoprawne dane logowania do TB7!");
+            return [];
+        }
+
+        // 2. Wyszukiwanie pliku
+        console.log(`Szukanie frazy: ${query}`);
         const searchRes = await instance.get(`/search?q=${encodeURIComponent(query)}`);
         const $ = cheerio.load(searchRes.data);
+        const streams = [];
 
+        // 3. Parsowanie tabeli wyników
         $("table tr").each((i, el) => {
             const row = $(el).find("td");
             if (row.length > 0) {
                 const title = $(row[0]).text().trim();
-                const link = $(row[0]).find("a").attr("href");
-                if (link && link.includes('download')) {
+                const link = $(row[0]).find("a[href*='download']").attr("href");
+                const size = $(row[2]).text().trim() || "N/A";
+
+                if (link) {
                     streams.push({
-                        name: "TB7",
-                        title: `⚡ ${title}`,
+                        name: "TB7 Premium",
+                        title: `📥 ${title}\n📂 Rozmiar: ${size}`,
                         url: `https://tb7.pl${link}`
                     });
                 }
             }
         });
 
+        return streams;
     } catch (e) {
-        console.log("Błąd serwera:", e.message);
+        console.log("Błąd podczas komunikacji z TB7:", e.message);
+        return [];
     }
+}
 
-    return { streams: streams };
+// Obsługa żądań o strumienie od Stremio
+builder.defineStreamHandler(async (args) => {
+    console.log(`--- Nowe żądanie: ${args.id} ---`);
+    
+    try {
+        // Pobieramy czytelną nazwę filmu z API Stremio (Cinemeta)
+        const type = args.type;
+        const imdbId = args.id.split(':')[1];
+        const metaRes = await axios.get(`https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`);
+        
+        const movieTitle = metaRes.data.meta.name;
+        console.log(`Znaleziony tytuł w bazie: ${movieTitle}`);
+
+        const streams = await searchTB7(movieTitle);
+        console.log(`Zwracam liczbę źródeł: ${streams.length}`);
+        
+        return { streams: streams };
+    } catch (err) {
+        console.log("Błąd pobierania metadanych:", err.message);
+        return { streams: [] };
+    }
 });
 
+// Start serwera
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
+ 
