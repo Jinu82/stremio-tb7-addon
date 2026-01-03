@@ -7,9 +7,9 @@ const TB7_LOGIN = 'Jinu82'; // <--- WPISZ TUTAJ
 const TB7_PASSWORD = 'skCvR5E#KYdR5V#'; // <--- WPISZ TUTAJ
 
 const builder = new addonBuilder({
-    id: "org.tb7.beamup.v2", // Zmienione ID, żeby Stremio odświeżyło cache
-    version: "1.0.5",
-    name: "TB7 Private Bridge",
+    id: "org.tb7.fanfilm.logic",
+    version: "1.1.0",
+    name: "TB7 Professional Bridge",
     resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
@@ -26,48 +26,61 @@ async function getMeta(id) {
 
 builder.defineStreamHandler(async (args) => {
     const meta = await getMeta(args.id);
+    const imdbId = args.id.split(':')[1];
     if (!meta) return { streams: [] };
 
-    const query = `${meta.name} ${meta.year || ''}`.trim();
-    console.log(`--- Szukam w TB7: ${query} ---`);
+    console.log(`--- Zapytanie dla: ${meta.name} (IMDb: ${imdbId}) ---`);
 
     try {
+        // Używamy "Cookie Jar" do zachowania sesji
         const instance = axios.create({ 
-            baseURL: 'https://tb7.pl', 
-            withCredentials: true,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            baseURL: 'https://tb7.pl',
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://tb7.pl/'
+            },
+            withCredentials: true
         });
 
-        // 1. Próba logowania
-        const loginPost = await instance.post('/login', qs.stringify({ login: TB7_LOGIN, password: TB7_PASSWORD }));
-        console.log("Status logowania:", loginPost.status === 200 ? "OK" : "BŁĄD");
+        // 1. Logowanie z pobraniem ciasteczek
+        await instance.post('/login', qs.stringify({ login: TB7_LOGIN, password: TB7_PASSWORD }));
 
-        // 2. Szukanie
-        const searchRes = await instance.get(`/search?q=${encodeURIComponent(query)}`);
-        const $ = cheerio.load(searchRes.data);
+        // 2. Szukanie - najpierw po IMDb ID, potem po tytule (tak robi FanFilm)
+        let searchRes = await instance.get(`/search?q=${imdbId}`);
+        let $ = cheerio.load(searchRes.data);
+        
+        // Jeśli brak wyników po IMDb, szukaj po nazwie
+        if ($("table tr").length <= 1) {
+            console.log("Brak wyników po ID, szukam po tytule...");
+            searchRes = await instance.get(`/search?q=${encodeURIComponent(meta.name)}`);
+            $ = cheerio.load(searchRes.data);
+        }
+
         const streams = [];
 
+        // 3. Wyciąganie linków
         $("table tr").each((i, el) => {
             const row = $(el).find("td");
             if (row.length > 0) {
                 const title = $(row[0]).text().trim();
-                const link = $(row[0]).find("a").attr("href");
-                
-                if (link && link.includes('download')) {
+                const downloadLink = $(row[0]).find("a[href*='download']").attr("href");
+                const size = $(row[2]).text().trim() || "N/A";
+
+                if (downloadLink) {
                     streams.push({
-                        name: "TB7",
-                        title: `📥 ${title}`,
-                        url: `https://tb7.pl${link}`
+                        name: "TB7 Premium",
+                        title: `${title}\n💾 Rozmiar: ${size}`,
+                        url: `https://tb7.pl${downloadLink}`
                     });
                 }
             }
         });
 
-        console.log(`Znaleziono plików: ${streams.length}`);
+        console.log(`Zakończono: znaleziono ${streams.length} źródeł.`);
         return { streams };
 
     } catch (e) {
-        console.log("Błąd krytyczny:", e.message);
+        console.log("Błąd:", e.message);
         return { streams: [] };
     }
 });
