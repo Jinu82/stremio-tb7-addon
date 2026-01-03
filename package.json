@@ -1,0 +1,12 @@
+{
+  "name": "stremio-tb7-addon",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "stremio-addon-sdk": "^1.6.0",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "qs": "^6.11.0"
+  },
+  "scripts": { "start": "node index.js" }
+}
