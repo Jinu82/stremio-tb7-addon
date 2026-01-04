@@ -3,15 +3,12 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 
-// Zaawansowane czyszczenie ciasteczka ze znaków specjalnych
-const TB7_COOKIE = (process.env.TB7_COOKIE || "")
-    .replace(/[\r\n]+/gm, "") // Usuwa znaki nowej linii
-    .trim(); 
+const TB7_COOKIE = (process.env.TB7_COOKIE || "").replace(/[\r\n]+/gm, "").trim(); 
 
 const builder = new addonBuilder({
-    id: "pl.tb7.final.v332", 
-    version: "3.3.2",
-    name: "TB7 Auto-Generator PRO",
+    id: "pl.tb7.fast.v334", 
+    version: "3.3.4",
+    name: "TB7 FAST",
     resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
@@ -19,7 +16,7 @@ const builder = new addonBuilder({
 });
 
 builder.defineStreamHandler(async (args) => {
-    console.log(`\n--- [ZAPYTANIE] ID: ${args.id} ---`);
+    console.log(`\n--- SZYBKIE ZAPYTANIE: ${args.id} ---`);
     const imdbId = args.id.split(':')[1] || args.id;
     let movieTitle = (imdbId === "tt8738964") ? "Kler" : "";
 
@@ -33,64 +30,55 @@ builder.defineStreamHandler(async (args) => {
     try {
         const client = axios.create({
             baseURL: 'https://tb7.pl',
-            timeout: 25000,
+            timeout: 8000, // Bardzo krótki czas na reakcję dla TB7
             headers: { 
                 'Cookie': TB7_COOKIE,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://tb7.pl/'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
 
-        console.log(`[KROK 1] Szukam: ${movieTitle}`);
+        // 1. Tylko jedno zapytanie do wyszukiwarki
         const res = await client.get(`/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`);
+        const $ = cheerio.load(res.data);
         
-        if (!res.data.includes("Jinu82") && !res.data.includes("Wyloguj")) {
-            console.log("[BŁĄD] Sesja odrzucona. Sprawdź TB7_COOKIE.");
-            return { streams: [] };
-        }
+        // Bierzemy tylko PIERWSZY wynik z góry (najczęściej najlepszy)
+        const firstRow = $("table tr").eq(1); 
+        const linkEl = firstRow.find("td").eq(1).find("a").first();
+        const fileName = linkEl.text().trim();
+        const prepareUrl = linkEl.attr("href");
+        const size = firstRow.find("td").eq(2).text().trim();
 
-        const $search = cheerio.load(res.data);
-        const streams = [];
-        const rows = $search("table tr").get().slice(1, 4); 
+        if (prepareUrl && fileName.length > 2) {
+            console.log(`[FAST] Przetwarzam tylko: ${fileName}`);
+            
+            // 2. Klikamy pobierz
+            const step2 = await client.get(prepareUrl);
+            const $step2 = cheerio.load(step2.data);
+            const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
+            
+            // 3. Klikamy wgraj i od razu szukamy linku w odpowiedzi
+            const step3 = await client.post(formAction, qs.stringify({ 'wgraj': 'Wgraj linki' }));
+            const $final = cheerio.load(step3.data);
+            const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
 
-        for (const el of rows) {
-            const row = $search(el).find("td");
-            const linkEl = $search(row[1]).find("a").first();
-            const fileName = linkEl.text().trim();
-            const prepareUrl = linkEl.attr("href");
-            const size = $search(row[2]).text().trim();
-
-            if (prepareUrl && fileName.length > 2) {
-                try {
-                    console.log(`[KROK 2] Próba generowania: ${fileName}`);
-                    const step2Res = await client.get(prepareUrl);
-                    const $step2 = cheerio.load(step2Res.data);
-                    
-                    const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
-                    const step3Res = await client.post(formAction, qs.stringify({ 'wgraj': 'Wgraj linki' }), {
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                    });
-
-                    const $final = cheerio.load(step3Res.data);
-                    const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
-
-                    if (finalLink) {
-                        console.log(`[SUKCES] Wygenerowano: ${finalLink}`);
-                        streams.push({
-                            name: "TB7 PRO",
-                            title: `🚀 ${fileName}\n⚖️ ${size}`,
-                            url: finalLink.startsWith('http') ? finalLink : `https://tb7.pl${finalLink}`
-                        });
-                    }
-                } catch (e) { console.log(`[BŁĄD PLIKU]: ${e.message}`); }
+            if (finalLink) {
+                console.log(`[SUKCES] Wysyłam link do Stremio`);
+                return { 
+                    streams: [{
+                        name: "TB7 FAST",
+                        title: `🚀 ${fileName}\n⚖️ ${size}`,
+                        url: finalLink.startsWith('http') ? finalLink : `https://tb7.pl${finalLink}`
+                    }] 
+                };
             }
         }
-        return { streams: streams };
+        
+        console.log("[INFO] Nie udało się wygenerować linku na czas.");
+        return { streams: [] };
     } catch (err) {
-        console.log(`[BŁĄD KRYTYCZNY]: ${err.message}`);
+        console.log(`[BŁĄD]: ${err.message}`);
         return { streams: [] };
     }
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
-console.log("SERWER V3.3.2 URUCHOMIONY");
