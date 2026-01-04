@@ -6,20 +6,26 @@ const qs = require("qs");
 const LOGIN = process.env.TB7_LOGIN;
 const PASSWORD = process.env.TB7_PASSWORD;
 
-// Przechowujemy ciasteczka w pamięci serwera, żeby nie logować się co sekundę
 let sessionCookie = "";
 
 const builder = new addonBuilder({
-    id: "pl.tb7.final.v400", 
-    version: "4.0.0",
+    id: "pl.tb7.final.v401", 
+    version: "4.0.1",
     name: "TB7 AUTO-LOGIN",
+    description: "Automatyczne logowanie i generowanie linków",
     resources: ["stream"],
     types: ["movie", "series"],
-    idPrefixes: ["tt"]
+    idPrefixes: ["tt"],
+    catalogs: [] // To pole naprawia Twój błąd!
 });
 
 async function loginToTB7() {
-    console.log("[LOGIN] Próba logowania jako: " + LOGIN);
+    if (!LOGIN || !PASSWORD) {
+        console.log("[BŁĄD] Brak TB7_LOGIN lub TB7_PASSWORD w ustawieniach Render!");
+        return null;
+    }
+    
+    console.log("[LOGIN] Próba logowania dla: " + LOGIN);
     const client = axios.create({ baseURL: 'https://tb7.pl', timeout: 10000 });
     
     try {
@@ -38,7 +44,7 @@ async function loginToTB7() {
             return sessionCookie;
         }
     } catch (e) {
-        console.log("[LOGIN] Błąd krytyczny: " + e.message);
+        console.log("[LOGIN] Błąd podczas logowania: " + e.message);
     }
     return null;
 }
@@ -48,29 +54,43 @@ builder.defineStreamHandler(async (args) => {
     const imdbId = args.id.split(':')[1] || args.id;
     let movieTitle = (imdbId === "tt8738964") ? "Kler" : "";
 
-    // 1. Zaloguj jeśli nie mamy ciasteczka
+    if (!movieTitle) {
+        try {
+            const meta = await axios.get(`https://v3-cinemeta.strem.io/meta/${args.type}/${imdbId}.json`);
+            movieTitle = meta.data.meta.name;
+        } catch (e) { movieTitle = imdbId; }
+    }
+
     if (!sessionCookie) {
         await loginToTB7();
     }
 
     const client = axios.create({
         baseURL: 'https://tb7.pl',
-        headers: { 'Cookie': sessionCookie, 'User-Agent': 'Mozilla/5.0' }
+        headers: { 
+            'Cookie': sessionCookie, 
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' 
+        }
     });
 
     try {
-        // 2. Szukaj filmu
         console.log(`[SZUKAJ] ${movieTitle}`);
         const searchRes = await client.get(`/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`);
         
-        // Jeśli nas wylogowało, spróbuj zalogować jeszcze raz
         if (!searchRes.data.includes("Wyloguj")) {
-            console.log("[SESJA] Wygasła, loguję ponownie...");
-            await loginToTB7();
-            return { streams: [] }; // Stremio spróbuje ponownie przy następnym kliknięciu
+            console.log("[SESJA] Wygasła, próba odświeżenia...");
+            const newCookie = await loginToTB7();
+            if (!newCookie) return { streams: [] };
+            // Spróbuj wyszukać ponownie po zalogowaniu
+            const retryRes = await axios.get(`https://tb7.pl/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`, {
+                headers: { 'Cookie': newCookie }
+            });
+            var pageData = retryRes.data;
+        } else {
+            var pageData = searchRes.data;
         }
 
-        const $ = cheerio.load(searchRes.data);
+        const $ = cheerio.load(pageData);
         const downloadLink = $("a[href*='/mojekonto/pobierz/']").first();
 
         if (downloadLink.length > 0) {
@@ -78,7 +98,6 @@ builder.defineStreamHandler(async (args) => {
             const prepareUrl = downloadLink.attr("href");
             console.log(`[PLIK] Znaleziono: ${fileName}`);
 
-            // 3. Generuj link
             const step2 = await client.get(prepareUrl);
             const $step2 = cheerio.load(step2.data);
             const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
@@ -88,13 +107,16 @@ builder.defineStreamHandler(async (args) => {
             const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
 
             if (finalLink) {
-                console.log("[SUKCES] Link wysłany!");
+                const streamUrl = finalLink.startsWith('http') ? finalLink : `https://tb7.pl${finalLink}`;
+                console.log("[SUKCES] Link wygenerowany poprawnie.");
                 return { streams: [{
                     name: "TB7 AUTO",
                     title: `🎬 ${fileName}`,
-                    url: finalLink.startsWith('http') ? finalLink : `https://tb7.pl${finalLink}`
+                    url: streamUrl
                 }]};
             }
+        } else {
+            console.log("[INFO] Brak wyników w wyszukiwarce TB7.");
         }
     } catch (err) {
         console.log(`[BŁĄD]: ${err.message}`);
@@ -103,3 +125,4 @@ builder.defineStreamHandler(async (args) => {
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
+console.log("SERWER V4.0.1 URUCHOMIONY");
