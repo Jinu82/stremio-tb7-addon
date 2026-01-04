@@ -3,97 +3,103 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 
-const TB7_COOKIE = (process.env.TB7_COOKIE || "").replace(/[\r\n]+/gm, "").trim(); 
+const LOGIN = process.env.TB7_LOGIN;
+const PASSWORD = process.env.TB7_PASSWORD;
+
+// Przechowujemy ciasteczka w pamięci serwera, żeby nie logować się co sekundę
+let sessionCookie = "";
 
 const builder = new addonBuilder({
-    id: "pl.tb7.final.v351", 
-    version: "3.5.1",
-    name: "TB7 ULTRA PRO",
+    id: "pl.tb7.final.v400", 
+    version: "4.0.0",
+    name: "TB7 AUTO-LOGIN",
     resources: ["stream"],
     types: ["movie", "series"],
-    idPrefixes: ["tt"],
-    catalogs: []
+    idPrefixes: ["tt"]
 });
 
+async function loginToTB7() {
+    console.log("[LOGIN] Próba logowania jako: " + LOGIN);
+    const client = axios.create({ baseURL: 'https://tb7.pl', timeout: 10000 });
+    
+    try {
+        const res = await client.post('/logowanie', qs.stringify({
+            'login': LOGIN,
+            'haslo': PASSWORD,
+            'zaloguj': 'Zaloguj się'
+        }), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        const cookies = res.headers['set-cookie'];
+        if (cookies) {
+            sessionCookie = cookies.map(c => c.split(';')[0]).join('; ');
+            console.log("[LOGIN] Sukces! Sesja zapisana.");
+            return sessionCookie;
+        }
+    } catch (e) {
+        console.log("[LOGIN] Błąd krytyczny: " + e.message);
+    }
+    return null;
+}
+
 builder.defineStreamHandler(async (args) => {
-    console.log(`\n--- [PROCES] Zapytanie o ID: ${args.id} ---`);
+    console.log(`\n--- [START] Zapytanie: ${args.id} ---`);
     const imdbId = args.id.split(':')[1] || args.id;
     let movieTitle = (imdbId === "tt8738964") ? "Kler" : "";
 
-    // Pobieranie tytułu jeśli nie jest to Kler
-    if (!movieTitle) {
-        try {
-            const meta = await axios.get(`https://v3-cinemeta.strem.io/meta/${args.type}/${imdbId}.json`);
-            movieTitle = meta.data.meta.name;
-        } catch (e) { movieTitle = imdbId; }
+    // 1. Zaloguj jeśli nie mamy ciasteczka
+    if (!sessionCookie) {
+        await loginToTB7();
     }
 
-    const headers = {
-        'Cookie': TB7_COOKIE,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Referer': 'https://tb7.pl/'
-    };
+    const client = axios.create({
+        baseURL: 'https://tb7.pl',
+        headers: { 'Cookie': sessionCookie, 'User-Agent': 'Mozilla/5.0' }
+    });
 
     try {
-        const client = axios.create({
-            baseURL: 'https://tb7.pl',
-            timeout: 15000,
-            headers: headers,
-            maxRedirects: 5
-        });
-
-        // Sprawdzenie sesji
-        console.log("[1] Sprawdzam dostęp do konta...");
-        const accountCheck = await client.get('/mojekonto');
-        
-        if (!accountCheck.data.includes("Wyloguj")) {
-            console.log("[!] BŁĄD: Serwer TB7 nie rozpoznał sesji. Wymagane nowe dane z tabletu.");
-            return { streams: [] };
-        }
-
-        console.log(`[2] Szukam filmu: ${movieTitle}`);
+        // 2. Szukaj filmu
+        console.log(`[SZUKAJ] ${movieTitle}`);
         const searchRes = await client.get(`/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`);
+        
+        // Jeśli nas wylogowało, spróbuj zalogować jeszcze raz
+        if (!searchRes.data.includes("Wyloguj")) {
+            console.log("[SESJA] Wygasła, loguję ponownie...");
+            await loginToTB7();
+            return { streams: [] }; // Stremio spróbuje ponownie przy następnym kliknięciu
+        }
+
         const $ = cheerio.load(searchRes.data);
-        
         const downloadLink = $("a[href*='/mojekonto/pobierz/']").first();
-        
-        if (downloadLink.length === 0) {
-            console.log("[!] Brak wyników wyszukiwania w TB7.");
-            return { streams: [] };
-        }
 
-        const fileName = downloadLink.text().trim();
-        const prepareUrl = downloadLink.attr("href");
-        console.log(`[3] Znaleziono: ${fileName}. Generuję link...`);
+        if (downloadLink.length > 0) {
+            const fileName = downloadLink.text().trim();
+            const prepareUrl = downloadLink.attr("href");
+            console.log(`[PLIK] Znaleziono: ${fileName}`);
 
-        // Generowanie (Krok Pobierz -> Wgraj)
-        const step2 = await client.get(prepareUrl);
-        const $step2 = cheerio.load(step2.data);
-        const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
-        
-        const step3 = await client.post(formAction, qs.stringify({ 'wgraj': 'Wgraj linki' }));
-        const $final = cheerio.load(step3.data);
-        const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
+            // 3. Generuj link
+            const step2 = await client.get(prepareUrl);
+            const $step2 = cheerio.load(step2.data);
+            const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
+            
+            const step3 = await client.post(formAction, qs.stringify({ 'wgraj': 'Wgraj linki' }));
+            const $final = cheerio.load(step3.data);
+            const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
 
-        if (finalLink) {
-            const fullUrl = finalLink.startsWith('http') ? finalLink : `https://tb7.pl${finalLink}`;
-            console.log(`[4] SUKCES: Link gotowy.`);
-            return { 
-                streams: [{
-                    name: "TB7 ULTRA",
+            if (finalLink) {
+                console.log("[SUKCES] Link wysłany!");
+                return { streams: [{
+                    name: "TB7 AUTO",
                     title: `🎬 ${fileName}`,
-                    url: fullUrl
-                }] 
-            };
+                    url: finalLink.startsWith('http') ? finalLink : `https://tb7.pl${finalLink}`
+                }]};
+            }
         }
-
-        return { streams: [] };
     } catch (err) {
-        console.log(`[BŁĄD KRYTYCZNY]: ${err.message}`);
-        return { streams: [] };
+        console.log(`[BŁĄD]: ${err.message}`);
     }
+    return { streams: [] };
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
-console.log("SERWER V3.5.1 START");
