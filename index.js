@@ -3,11 +3,14 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 
-const TB7_COOKIE = (process.env.TB7_COOKIE || "").trim(); 
+// Zaawansowane czyszczenie ciasteczka ze znaków specjalnych
+const TB7_COOKIE = (process.env.TB7_COOKIE || "")
+    .replace(/[\r\n]+/gm, "") // Usuwa znaki nowej linii
+    .trim(); 
 
 const builder = new addonBuilder({
-    id: "pl.tb7.final.v331", 
-    version: "3.3.1",
+    id: "pl.tb7.final.v332", 
+    version: "3.3.2",
     name: "TB7 Auto-Generator PRO",
     resources: ["stream"],
     types: ["movie", "series"],
@@ -41,17 +44,14 @@ builder.defineStreamHandler(async (args) => {
         console.log(`[KROK 1] Szukam: ${movieTitle}`);
         const res = await client.get(`/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`);
         
-        // Szukamy Twojego loginu "Jinu82" lub napisu "Wyloguj" w kodzie strony
         if (!res.data.includes("Jinu82") && !res.data.includes("Wyloguj")) {
-            console.log("[BŁĄD] Sesja odrzucona. Sprawdź czy TB7_COOKIE w Render jest identyczne z tym co wysłałeś.");
+            console.log("[BŁĄD] Sesja odrzucona. Sprawdź TB7_COOKIE.");
             return { streams: [] };
         }
 
         const $search = cheerio.load(res.data);
         const streams = [];
         const rows = $search("table tr").get().slice(1, 4); 
-
-        console.log(`[KROK 1] Znaleziono plików w tabeli: ${rows.length}`);
 
         for (const el of rows) {
             const row = $search(el).find("td");
@@ -75,7 +75,7 @@ builder.defineStreamHandler(async (args) => {
                     const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
 
                     if (finalLink) {
-                        console.log(`[SUKCES] Wygenerowano link: ${finalLink}`);
+                        console.log(`[SUKCES] Wygenerowano: ${finalLink}`);
                         streams.push({
                             name: "TB7 PRO",
                             title: `🚀 ${fileName}\n⚖️ ${size}`,
@@ -93,4 +93,4 @@ builder.defineStreamHandler(async (args) => {
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
-console.log("SERWER V3.3.1 GOTOWY");
+console.log("SERWER V3.3.2 URUCHOMIONY");
