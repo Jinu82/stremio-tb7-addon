@@ -5,19 +5,19 @@ const cheerio = require("cheerio");
 const TB7_COOKIE = process.env.TB7_COOKIE; 
 
 const builder = new addonBuilder({
-    id: "pl.tb7.final.v27", 
-    version: "2.7.0",
+    id: "pl.tb7.final.v28", 
+    version: "2.8.0",
     name: "TB7 Professional Premium",
     resources: ["stream"],
     types: ["movie", "series"],
-    idPrefixes: ["tt"]
+    idPrefixes: ["tt"],
+    catalogs: [] // Ta linia naprawia błąd z logów
 });
 
 builder.defineStreamHandler(async (args) => {
     console.log(`--- Żądanie Stremio: ${args.id} ---`);
     const imdbId = args.id.split(':')[1] || args.id;
     
-    // Rozpoznawanie tytułu (priorytet dla Kler)
     let movieTitle = (imdbId === "tt8738964") ? "Kler" : "";
 
     if (!movieTitle) {
@@ -43,21 +43,18 @@ builder.defineStreamHandler(async (args) => {
         console.log(`[TB7] Szukam frazy: ${movieTitle}`);
         const res = await client.get(`/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`);
         
-        // Sprawdzenie sesji na podstawie Twojego loginu
         if (!res.data.includes("Jinu82") && !res.data.includes("Wyloguj")) {
-            console.log("[BŁĄD] Serwer TB7 odrzucił sesję. Zaktualizuj TB7_COOKIE w Render.");
+            console.log("[BŁĄD] Sesja wygasła. Zaktualizuj TB7_COOKIE.");
             return { streams: [] };
         }
 
         const $ = cheerio.load(res.data);
         const streams = [];
 
-        // Przeszukiwanie tabeli z wynikami
         $("table tr").each((i, el) => {
             const row = $(el).find("td");
-            // Na Twoim zrzucie: Kolumna 2 (index 1) to Nazwa pliku z linkiem
             const linkEl = $(row[1]).find("a").first();
-            const size = $(row[2]).text().trim(); // Kolumna 3 (index 2) to Rozmiar
+            const size = $(row[2]).text().trim();
 
             if (linkEl.length > 0) {
                 const title = linkEl.text().trim();
@@ -73,14 +70,14 @@ builder.defineStreamHandler(async (args) => {
             }
         });
 
-        console.log(`[SUKCES] Znaleziono linków: ${streams.length}`);
+        console.log(`[SUKCES] Znaleziono: ${streams.length}`);
         return { streams: streams };
 
     } catch (err) {
-        console.log("[ERROR KRYTYCZNY]:", err.message);
+        console.log("[ERROR]:", err.message);
         return { streams: [] };
     }
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
-console.log("SERWER V2.7.0 GOTOWY");
+console.log("SERWER V2.8.0 NAPRAWIONY");
