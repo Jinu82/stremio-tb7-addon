@@ -8,37 +8,29 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// GLOBALNE WYMUSZENIE JSON DLA MANIFESTU
-app.use((req, res, next) => {
-    if (req.path === "/manifest.json") {
-        res.setHeader("Content-Type", "application/json; charset=utf-8");
-    }
-    next();
-});
-
-// Serwowanie manifest.json z folderu /data
+// DYNAMICZNY MANIFEST – Railway nie może go nadpisać
 app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json({
-  id: "pl.tb7.configurable",
-  version: "5.0.0",
-  name: "TB7 POLSKA PRO (Config)",
-  description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
-  logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
-  resources: [
-    {
-      name: "stream",
-      types: ["movie", "series"]
-    }
-  ],
-  types: ["movie", "series"],
-  idPrefixes: ["tt"],
-  catalogs: [],
-  behaviorHints: {
-    configurable: true,
-    configurationRequired: true
-  }
-}); 
+        id: "pl.tb7.configurable",
+        version: "5.0.0",
+        name: "TB7 POLSKA PRO (Config)",
+        description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
+        logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
+        resources: [
+            {
+                name: "stream",
+                types: ["movie", "series"]
+            }
+        ],
+        types: ["movie", "series"],
+        idPrefixes: ["tt"],
+        catalogs: [],
+        behaviorHints: {
+            configurable: true,
+            configurationRequired: true
+        }
+    });
 });
 
 // Serwowanie logo
@@ -229,7 +221,7 @@ builder.defineStreamHandler(async (args, req) => {
     }
 });
 
-// ROUTING STREMIO — OBSŁUGA WSZYSTKICH FORMATÓW
+// ROUTING STREMIO
 app.get("/:resource/:type/:id.json", (req, res) => {
     builder.getInterface().get(req, res);
 });
@@ -243,5 +235,5 @@ app.get("/:resource/:type/:id/:extra", (req, res) => {
 });
 
 // START SERWERA
-const PORT = process.env.PORT || 7000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Addon + panel config działa na porcie", PORT));
