@@ -16,7 +16,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Serwowanie manifest.json — WYMUSZONE
+// Serwowanie manifest.json z folderu /data
 app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.sendFile(path.join(__dirname, "data", "manifest.json"));
@@ -65,6 +65,7 @@ async function loginToTB7(user) {
     }
     return false;
 }
+
 // PANEL KONFIGURACYJNY
 app.get("/config", (req, res) => {
     const user = getUser(req);
@@ -208,6 +209,7 @@ builder.defineStreamHandler(async (args, req) => {
         return { streams: [] };
     }
 });
+
 // ROUTING STREMIO — OBSŁUGA WSZYSTKICH FORMATÓW
 app.get("/:resource/:type/:id.json", (req, res) => {
     builder.getInterface().get(req, res);
