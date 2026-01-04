@@ -1,16 +1,18 @@
-const path = require("path");
-
-app.get("/manifest.json", (req, res) => {
-    res.sendFile(path.join(__dirname, "manifest.json"));
-});
-const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const express = require("express");
+const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
+const path = require("path");
 
+// EXPRESS – PANEL KONFIGURACYJNY
 const app = express();
 app.use(express.urlencoded({ extended: true }));
+
+// Serwowanie manifest.json bezpośrednio z pliku (ważne dla Render!)
+app.get("/manifest.json", (req, res) => {
+    res.sendFile(path.join(__dirname, "manifest.json"));
+});
 
 // Pamięć użytkowników: IP → { login, password, cookie }
 const users = new Map();
@@ -23,19 +25,26 @@ function getUser(req) {
 
 async function loginToTB7(user) {
     try {
-        const res = await axios.post('https://tb7.pl/logowanie', qs.stringify({
-            'login': user.login,
-            'haslo': user.password,
-            'zaloguj': 'Zaloguj się'
-        }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 8000 });
+        const res = await axios.post(
+            "https://tb7.pl/logowanie",
+            qs.stringify({
+                login: user.login,
+                haslo: user.password,
+                zaloguj: "Zaloguj się"
+            }),
+            {
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                timeout: 8000
+            }
+        );
 
-        const cookies = res.headers['set-cookie'];
+        const cookies = res.headers["set-cookie"];
         if (cookies) {
-            user.cookie = cookies.map(c => c.split(';')[0]).join('; ');
+            user.cookie = cookies.map(c => c.split(";")[0]).join("; ");
             return true;
         }
     } catch (e) {
-        console.log("[LOGIN] Błąd: " + e.message);
+        console.log("[LOGIN ERROR]", e.message);
     }
     return false;
 }
@@ -82,7 +91,10 @@ builder.defineStreamHandler(async (args, req) => {
     const user = getUser(req);
 
     if (!user.login || !user.password) {
-        return { streams: [], error: "Wymagana konfiguracja dodatku: odwiedź /config" };
+        return {
+            streams: [],
+            error: "Wymagana konfiguracja dodatku: odwiedź /config"
+        };
     }
 
     if (!user.cookie) {
@@ -90,11 +102,13 @@ builder.defineStreamHandler(async (args, req) => {
         if (!ok) return { streams: [], error: "Błąd logowania do TB7" };
     }
 
-    const imdbId = args.id.split(':')[0];
+    const imdbId = args.id.split(":")[0];
     let title = "";
 
     try {
-        const meta = await axios.get(`https://v3-cinemeta.strem.io/meta/${args.type}/${imdbId}.json`);
+        const meta = await axios.get(
+            `https://v3-cinemeta.strem.io/meta/${args.type}/${imdbId}.json`
+        );
         title = meta.data.meta.name;
     } catch {
         title = imdbId;
@@ -102,51 +116,4 @@ builder.defineStreamHandler(async (args, req) => {
 
     try {
         const cleanTitle = title.replace(/[^a-zA-Z0-9 ]/g, "").trim();
-        const searchUrl = `https://tb7.pl/mojekonto/szukaj?q=${encodeURIComponent(cleanTitle)}`;
-
-        let searchRes = await axios.get(searchUrl, { headers: { 'Cookie': user.cookie } });
-
-        if (!searchRes.data.includes("Wyloguj")) {
-            await loginToTB7(user);
-            searchRes = await axios.get(searchUrl, { headers: { 'Cookie': user.cookie } });
-        }
-
-        const $ = cheerio.load(searchRes.data);
-        const results = $("a[href*='/mojekonto/pobierz/']");
-
-        if (results.length === 0) return { streams: [] };
-
-        const first = results.first();
-        const fileName = first.text().trim();
-        const prepareUrl = first.attr("href");
-
-        const step2 = await axios.get(`https://tb7.pl${prepareUrl}`, { headers: { 'Cookie': user.cookie } });
-        const $step2 = cheerio.load(step2.data);
-        const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
-
-        const step3 = await axios.post(`https://tb7.pl${formAction}`, qs.stringify({ 'wgraj': 'Wgraj linki' }), {
-            headers: { 'Cookie': user.cookie, 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-
-        const $final = cheerio.load(step3.data);
-        const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
-
-        if (!finalLink) return { streams: [] };
-
-        return {
-            streams: [{
-                name: "TB7 PL",
-                title: fileName,
-                url: finalLink.startsWith("http") ? finalLink : `https://tb7.pl${finalLink}`
-            }]
-        };
-
-    } catch (e) {
-        console.log("[BŁĄD]:", e.message);
-        return { streams: [] };
-    }
-});
-
-// URUCHOMIENIE
-serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
-app.listen(7001, () => console.log("Panel konfiguracyjny działa na porcie 7001"));
+        const searchUrl = `https://tb7.pl/mojekonto/szukaj?q=${encodeURIComponent
