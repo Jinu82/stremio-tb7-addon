@@ -237,3 +237,6 @@ app.get("/:resource/:type/:id/:extra", (req, res) => {
 // START SERWERA
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Addon + panel config działa na porcie", PORT));
+app.get("/test", (req, res) => {
+    res.send("EXPRESS DZIAŁA");
+});
