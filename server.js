@@ -1,3 +1,8 @@
+const path = require("path");
+
+app.get("/manifest.json", (req, res) => {
+    res.sendFile(path.join(__dirname, "manifest.json"));
+});
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const express = require("express");
 const axios = require("axios");
