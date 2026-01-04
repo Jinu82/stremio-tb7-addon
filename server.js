@@ -179,6 +179,9 @@ builder.defineStreamHandler(async (args, req) => {
     }
 });
 
-// START SERWERA
-serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
-app.listen(7001, () => console.log("Panel konfiguracyjny działa na porcie 7001"));
+// START SERWERA — JEDEN PORT DLA WSZYSTKIEGO
+const PORT = process.env.PORT || 7000;
+
+serveHTTP(builder.getInterface(), { app, port: PORT });
+
+console.log("Addon + panel config działają na porcie", PORT);
