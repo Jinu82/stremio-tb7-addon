@@ -19,7 +19,26 @@ app.use((req, res, next) => {
 // Serwowanie manifest.json z folderu /data
 app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.sendFile(path.join(__dirname, "data", "manifest.json"));
+    res.json({
+  id: "pl.tb7.configurable",
+  version: "5.0.0",
+  name: "TB7 POLSKA PRO (Config)",
+  description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
+  logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
+  resources: [
+    {
+      name: "stream",
+      types: ["movie", "series"]
+    }
+  ],
+  types: ["movie", "series"],
+  idPrefixes: ["tt"],
+  catalogs: [],
+  behaviorHints: {
+    configurable: true,
+    configurationRequired: true
+  }
+}); 
 });
 
 // Serwowanie logo
