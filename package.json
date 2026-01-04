@@ -2,6 +2,11 @@
   "name": "tb7-stremio-addon",
   "version": "5.0.0",
   "description": "Stremio addon using TB7 with user configuration",
+
+  "engines": {
+    "node": "20.x"
+  },
+
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
