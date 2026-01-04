@@ -3,6 +3,7 @@
   "version": "5.0.0",
   "name": "TB7 POLSKA PRO (Config)",
   "description": "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
+  "logo": "https://stb7remio-addon.onrender.com/logo.png"
   "resources": [
     {
       "name": "stream",
