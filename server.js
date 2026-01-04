@@ -117,3 +117,68 @@ builder.defineStreamHandler(async (args, req) => {
     try {
         const cleanTitle = title.replace(/[^a-zA-Z0-9 ]/g, "").trim();
         const searchUrl = `https://tb7.pl/mojekonto/szukaj?q=${encodeURIComponent(cleanTitle)}`;
+
+        let searchRes = await axios.get(searchUrl, {
+            headers: { Cookie: user.cookie }
+        });
+
+        if (!searchRes.data.includes("Wyloguj")) {
+            await loginToTB7(user);
+            searchRes = await axios.get(searchUrl, {
+                headers: { Cookie: user.cookie }
+            });
+        }
+
+        const $ = cheerio.load(searchRes.data);
+        const results = $("a[href*='/mojekonto/pobierz/']");
+
+        if (results.length === 0) return { streams: [] };
+
+        const first = results.first();
+        const fileName = first.text().trim();
+        const prepareUrl = first.attr("href");
+
+        const step2 = await axios.get(`https://tb7.pl${prepareUrl}`, {
+            headers: { Cookie: user.cookie }
+        });
+
+        const $step2 = cheerio.load(step2.data);
+        const formAction =
+            $step2("form").attr("action") || "/mojekonto/sciagaj";
+
+        const step3 = await axios.post(
+            `https://tb7.pl${formAction}`,
+            qs.stringify({ wgraj: "Wgraj linki" }),
+            {
+                headers: {
+                    Cookie: user.cookie,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+            }
+        );
+
+        const $final = cheerio.load(step3.data);
+        const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
+
+        if (!finalLink) return { streams: [] };
+
+        return {
+            streams: [
+                {
+                    name: "TB7 PL",
+                    title: fileName,
+                    url: finalLink.startsWith("http")
+                        ? finalLink
+                        : `https://tb7.pl${finalLink}`
+                }
+            ]
+        };
+    } catch (e) {
+        console.log("[STREAM ERROR]", e.message);
+        return { streams: [] };
+    }
+});
+
+// START SERWERA
+serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
+app.listen(7001, () => console.log("Panel konfiguracyjny działa na porcie 7001"));
