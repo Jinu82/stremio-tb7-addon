@@ -8,9 +8,17 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// Serwowanie manifest.json z poprawnym Content-Type
+// GLOBALNE WYMUSZENIE JSON DLA MANIFESTU
+app.use((req, res, next) => {
+    if (req.path === "/manifest.json") {
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+    }
+    next();
+});
+
+// Serwowanie manifest.json — WYMUSZONE
 app.get("/manifest.json", (req, res) => {
-    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.sendFile(path.join(__dirname, "manifest.json"));
 });
 
@@ -149,72 +157,4 @@ builder.defineStreamHandler(async (args, req) => {
         if (results.length === 0) return { streams: [] };
 
         const first = results.first();
-        const fileName = first.text().trim();
-        const prepareUrl = first.attr("href");
-
-        console.log("Pierwszy wynik:", fileName, prepareUrl);
-
-        const step2 = await axios.get(`https://tb7.pl${prepareUrl}`, {
-            headers: { Cookie: user.cookie }
-        });
-
-        const $step2 = cheerio.load(step2.data);
-        const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
-
-        console.log("Form action:", formAction);
-
-        const step3 = await axios.post(
-            `https://tb7.pl${formAction}`,
-            qs.stringify({ wgraj: "Wgraj linki" }),
-            {
-                headers: {
-                    Cookie: user.cookie,
-                    "Content-Type": "application/x-www-form-urlencoded"
-                }
-            }
-        );
-
-        const $final = cheerio.load(step3.data);
-        const finalLink = $final("a[href*='/sciagaj/']").first().attr("href");
-
-        console.log("Final link:", finalLink);
-
-        if (!finalLink) return { streams: [] };
-
-        const streamUrl = finalLink.startsWith("http")
-            ? finalLink
-            : `https://tb7.pl${finalLink}`;
-
-        console.log("Zwracam stream:", streamUrl);
-
-        return {
-            streams: [
-                {
-                    name: "TB7 PL",
-                    title: fileName,
-                    url: streamUrl
-                }
-            ]
-        };
-    } catch (e) {
-        console.log("STREAM ERROR:", e.message);
-        return { streams: [] };
-    }
-});
-
-// ROUTING STREMIO — OBSŁUGA WSZYSTKICH FORMATÓW
-app.get("/:resource/:type/:id.json", (req, res) => {
-    builder.getInterface().get(req, res);
-});
-
-app.get("/:resource/:type/:id", (req, res) => {
-    builder.getInterface().get(req, res);
-});
-
-app.get("/:resource/:type/:id/:extra", (req, res) => {
-    builder.getInterface().get(req, res);
-});
-
-// START SERWERA
-const PORT = process.env.PORT || 7000;
-app.listen(PORT, () => console.log("Addon + panel config działa na porcie", PORT));
+        const
