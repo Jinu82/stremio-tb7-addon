@@ -116,4 +116,4 @@ builder.defineStreamHandler(async (args, req) => {
 
     try {
         const cleanTitle = title.replace(/[^a-zA-Z0-9 ]/g, "").trim();
-        const searchUrl = `https://tb7.pl/mojekonto/szukaj?q=${encodeURIComponent
+        const searchUrl = `https://tb7.pl/mojekonto/szukaj?q=${encodeURIComponent(cleanTitle)}`;
