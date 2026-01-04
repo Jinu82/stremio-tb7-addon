@@ -48,6 +48,9 @@ async function loginToTB7(user) {
 }
 
 // PANEL KONFIGURACYJNY
+app.get("/configure", (req, res) => {
+    res.redirect("/config");
+});
 app.get("/config", (req, res) => {
     const user = getUser(req);
     res.send(`
