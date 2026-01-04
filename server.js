@@ -196,8 +196,12 @@ builder.defineStreamHandler(async (args, req) => {
     }
 });
 
-// ROUTING STREMIO
+// ROUTING STREMIO — OBSŁUGA OBU FORMATÓW
 app.get("/:resource/:type/:id.json", (req, res) => {
+    builder.getInterface().get(req, res);
+});
+
+app.get("/:resource/:type/:id", (req, res) => {
     builder.getInterface().get(req, res);
 });
 
