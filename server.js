@@ -8,9 +8,15 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// Serwowanie manifest.json
+// Serwowanie manifest.json z poprawnym Content-Type
 app.get("/manifest.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
     res.sendFile(path.join(__dirname, "manifest.json"));
+});
+
+// Serwowanie logo
+app.get("/logo.png", (req, res) => {
+    res.sendFile(path.join(__dirname, "logo.png"));
 });
 
 // Stremio otwiera /configure → przekierowanie
