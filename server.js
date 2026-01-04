@@ -1,20 +1,19 @@
 const express = require("express");
-const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
+const { addonBuilder } = require("stremio-addon-sdk");
 const axios = require("axios");
 const cheerio = require("cheerio");
 const qs = require("qs");
 const path = require("path");
 
-// EXPRESS – PANEL KONFIGURACYJNY
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// Serwowanie manifest.json bezpośrednio z pliku (ważne dla Render!)
+// Serwowanie manifest.json
 app.get("/manifest.json", (req, res) => {
     res.sendFile(path.join(__dirname, "manifest.json"));
 });
 
-// Pamięć użytkowników: IP → { login, password, cookie }
+// Pamięć użytkowników
 const users = new Map();
 
 function getUser(req) {
@@ -33,8 +32,7 @@ async function loginToTB7(user) {
                 zaloguj: "Zaloguj się"
             }),
             {
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                timeout: 8000
+                headers: { "Content-Type": "application/x-www-form-urlencoded" }
             }
         );
 
@@ -103,16 +101,14 @@ builder.defineStreamHandler(async (args, req) => {
     }
 
     const imdbId = args.id.split(":")[0];
-    let title = "";
+    let title = imdbId;
 
     try {
         const meta = await axios.get(
             `https://v3-cinemeta.strem.io/meta/${args.type}/${imdbId}.json`
         );
         title = meta.data.meta.name;
-    } catch {
-        title = imdbId;
-    }
+    } catch {}
 
     try {
         const cleanTitle = title.replace(/[^a-zA-Z0-9 ]/g, "").trim();
@@ -143,8 +139,7 @@ builder.defineStreamHandler(async (args, req) => {
         });
 
         const $step2 = cheerio.load(step2.data);
-        const formAction =
-            $step2("form").attr("action") || "/mojekonto/sciagaj";
+        const formAction = $step2("form").attr("action") || "/mojekonto/sciagaj";
 
         const step3 = await axios.post(
             `https://tb7.pl${formAction}`,
@@ -179,9 +174,11 @@ builder.defineStreamHandler(async (args, req) => {
     }
 });
 
-// START SERWERA — JEDEN PORT DLA WSZYSTKIEGO
+// PODPIĘCIE ADDONU DO EXPRESSA
+app.get("/:resource/:type/:id.json", (req, res) => {
+    builder.getInterface().get(req, res);
+});
+
+// START SERWERA
 const PORT = process.env.PORT || 7000;
-
-serveHTTP(builder.getInterface(), { app, port: PORT });
-
-console.log("Addon + panel config działają na porcie", PORT);
+app.listen(PORT, () => console.log("Addon + panel config działa na porcie", PORT));
