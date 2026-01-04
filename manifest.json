@@ -3,21 +3,15 @@
   "version": "5.0.0",
   "name": "TB7 POLSKA PRO (Config)",
   "description": "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
-  "logo": "https://raw.githubusercontent.com/<twoje_repo>/logo.png",
-  "background": "https://raw.githubusercontent.com/<twoje_repo>/background.jpg",
-
-  "types": ["movie", "series"],
-  "idPrefixes": ["tt"],
-
   "resources": [
     {
       "name": "stream",
       "types": ["movie", "series"]
     }
   ],
-
+  "types": ["movie", "series"],
+  "idPrefixes": ["tt"],
   "catalogs": [],
-
   "behaviorHints": {
     "configurable": true,
     "configurationRequired": true
