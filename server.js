@@ -19,7 +19,7 @@ app.use((req, res, next) => {
 // Serwowanie manifest.json — WYMUSZONE
 app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.sendFile(path.join(__dirname, "manifest.json"));
+    res.sendFile(path.join(__dirname, "data", "manifest.json"));
 });
 
 // Serwowanie logo
