@@ -5,26 +5,23 @@ const cheerio = require("cheerio");
 const TB7_COOKIE = process.env.TB7_COOKIE; 
 
 const builder = new addonBuilder({
-    id: "pl.tb7.final.v28", 
-    version: "2.8.0",
+    id: "pl.tb7.final.v29", 
+    version: "2.9.0",
     name: "TB7 Professional Premium",
     resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
-    catalogs: [] // Ta linia naprawia błąd z logów
+    catalogs: []
 });
 
 builder.defineStreamHandler(async (args) => {
-    console.log(`--- Żądanie Stremio: ${args.id} ---`);
     const imdbId = args.id.split(':')[1] || args.id;
-    
     let movieTitle = (imdbId === "tt8738964") ? "Kler" : "";
 
     if (!movieTitle) {
         try {
             const meta = await axios.get(`https://v3-cinemeta.strem.io/meta/${args.type}/${imdbId}.json`, { 
-                headers: { 'Accept-Language': 'pl' },
-                timeout: 5000 
+                headers: { 'Accept-Language': 'pl' }
             });
             movieTitle = meta.data.meta.name;
         } catch (e) { movieTitle = imdbId; }
@@ -33,51 +30,42 @@ builder.defineStreamHandler(async (args) => {
     try {
         const client = axios.create({
             baseURL: 'https://tb7.pl',
-            timeout: 10000,
-            headers: {
-                'Cookie': TB7_COOKIE,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+            headers: { 'Cookie': TB7_COOKIE, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
 
-        console.log(`[TB7] Szukam frazy: ${movieTitle}`);
+        // KROK 1: Wyszukiwanie (Twój ostatni zrzut ekranu)
         const res = await client.get(`/mojekonto/szukaj?q=${encodeURIComponent(movieTitle)}`);
-        
-        if (!res.data.includes("Jinu82") && !res.data.includes("Wyloguj")) {
-            console.log("[BŁĄD] Sesja wygasła. Zaktualizuj TB7_COOKIE.");
-            return { streams: [] };
-        }
-
         const $ = cheerio.load(res.data);
         const streams = [];
 
+        // Przeszukujemy wiersze tabeli wyników
         $("table tr").each((i, el) => {
             const row = $(el).find("td");
-            const linkEl = $(row[1]).find("a").first();
+            // Nazwa pliku i link do "przygotowania" pliku
+            const nameEl = $(row[1]).find("a").first();
             const size = $(row[2]).text().trim();
+            const hosting = $(row[0]).text().trim(); // Np. WRZUTA, TWOJPLIK
 
-            if (linkEl.length > 0) {
-                const title = linkEl.text().trim();
-                const link = linkEl.attr("href");
+            if (nameEl.length > 0) {
+                const title = nameEl.text().trim();
+                const prepareUrl = nameEl.attr("href");
 
-                if (link && title.length > 2) {
+                if (prepareUrl && title.length > 2) {
                     streams.push({
-                        name: "TB7 Premium",
+                        name: `TB7 [${hosting}]`,
                         title: `📥 ${title}\n⚖️ ${size}`,
-                        url: link.startsWith('http') ? link : `https://tb7.pl${link}`
+                        // Stremio potrzebuje bezpośredniego linku. 
+                        // Ponieważ proces wymaga kliknięć, kierujemy do strony przygotowania pliku.
+                        url: prepareUrl.startsWith('http') ? prepareUrl : `https://tb7.pl${prepareUrl}`
                     });
                 }
             }
         });
 
-        console.log(`[SUKCES] Znaleziono: ${streams.length}`);
         return { streams: streams };
-
     } catch (err) {
-        console.log("[ERROR]:", err.message);
         return { streams: [] };
     }
 });
 
-serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000, address: '0.0.0.0' });
-console.log("SERWER V2.8.0 NAPRAWIONY");
+serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
