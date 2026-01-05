@@ -8,15 +8,30 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// TEST MANIFEST
 app.get("/manifest.json", (req, res) => {
-    console.log("=== TEST MANIFEST DZIAŁA ===");
+    console.log("=== MANIFEST HANDLER DZIAŁA ===");
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json({
-        test: "manifest działa",
-        time: Date.now()
+        id: "pl.tb7.configurable",
+        version: "5.0.0",
+        name: "TB7 POLSKA PRO (Config)",
+        description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
+        logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
+        resources: [
+            {
+                name: "stream",
+                types: ["movie", "series"]
+            }
+        ],
+        types: ["movie", "series"],
+        idPrefixes: ["tt"],
+        catalogs: [],
+        behaviorHints: {
+            configurable: true,
+            configurationRequired: true
+        }
     });
-});
+}); 
 // DYNAMICZNY MANIFEST
 app.get("/manifest.json", (req, res) => {
     console.log("=== MANIFEST HANDLER DZIAŁA ===");
