@@ -8,7 +8,14 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// JEDYNY manifest — poprawny, z katalogiem i extraSupported
+// ===== CORS — wymagane przez Stremio, aby pokazać "Zainstaluj" =====
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    next();
+});
+
+// ===== MANIFEST =====
 app.get("/manifest.json", (req, res) => {
     console.log("=== MANIFEST HANDLER DZIAŁA ===");
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -18,16 +25,18 @@ app.get("/manifest.json", (req, res) => {
         name: "TB7 POLSKA PRO (Config)",
         description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
         logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
+
         resources: [
             {
                 name: "stream",
                 types: ["movie", "series"]
             }
         ],
+
         types: ["movie", "series"],
         idPrefixes: ["tt"],
 
-        // KATALOG — teraz pełny, instalowalny
+        // ===== KATALOG (wymagany, aby addon był instalowalny) =====
         catalogs: [
             {
                 type: "movie",
@@ -44,29 +53,30 @@ app.get("/manifest.json", (req, res) => {
     });
 });
 
-// ENDPOINT KATALOGU — wymagany, aby Stremio pokazało „Zainstaluj”
+// ===== ENDPOINT KATALOGU (wymagany, aby Stremio pokazało "Zainstaluj") =====
 app.get("/catalog/movie/tb7-movies.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
     res.json({
-        metas: [] // pusty katalog, ale wystarczy do instalacji
+        metas: [] // pusty katalog — wystarczy, aby addon był instalowalny
     });
 });
 
-// TEST ROOT
+// ===== ROOT =====
 app.get("/", (req, res) => {
     res.send("EXPRESS DZIAŁA");
 });
 
-// Serwowanie logo
+// ===== LOGO =====
 app.get("/logo.png", (req, res) => {
     res.sendFile(path.join(__dirname, "logo.png"));
 });
 
-// /configure → /config
+// ===== CONFIG REDIRECT =====
 app.get("/configure", (req, res) => {
     res.redirect("/config");
 });
 
-// Pamięć użytkowników
+// ===== PAMIĘĆ UŻYTKOWNIKÓW =====
 const users = new Map();
 
 function getUser(req) {
@@ -100,7 +110,7 @@ async function loginToTB7(user) {
     return false;
 }
 
-// PANEL KONFIGURACYJNY
+// ===== PANEL KONFIGURACYJNY =====
 app.get("/config", (req, res) => {
     const user = getUser(req);
     res.send(`
@@ -127,7 +137,7 @@ app.post("/config", (req, res) => {
     res.send("<h3>Zapisano! Możesz wrócić do Stremio.</h3>");
 });
 
-// STREMIO ADDON
+// ===== STREMIO ADDON BUILDER =====
 const builder = new addonBuilder({
     id: "pl.tb7.configurable",
     version: "5.0.0",
@@ -145,7 +155,7 @@ const builder = new addonBuilder({
     ]
 });
 
-// STREAM HANDLER
+// ===== STREAM HANDLER =====
 builder.defineStreamHandler(async (args, req) => {
     console.log("=== STREAM HANDLER START ===");
     console.log("Args:", JSON.stringify(args, null, 2));
@@ -251,7 +261,7 @@ builder.defineStreamHandler(async (args, req) => {
     }
 });
 
-// ROUTING STREMIO
+// ===== ROUTING STREMIO =====
 app.get("/:resource/:type/:id.json", (req, res) => {
     builder.getInterface().get(req, res);
 });
@@ -264,6 +274,6 @@ app.get("/:resource/:type/:id/:extra", (req, res) => {
     builder.getInterface().get(req, res);
 });
 
-// START SERWERA
+// ===== START SERWERA =====
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Addon + panel config działa na porcie", PORT));
