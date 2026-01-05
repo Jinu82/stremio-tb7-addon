@@ -8,31 +8,7 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-app.get("/manifest.json", (req, res) => {
-    console.log("=== MANIFEST HANDLER DZIAŁA ===");
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.json({
-        id: "pl.tb7.configurable",
-        version: "5.0.0",
-        name: "TB7 POLSKA PRO (Config)",
-        description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
-        logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
-        resources: [
-            {
-                name: "stream",
-                types: ["movie", "series"]
-            }
-        ],
-        types: ["movie", "series"],
-        idPrefixes: ["tt"],
-        catalogs: [],
-        behaviorHints: {
-            configurable: true,
-            configurationRequired: true
-        }
-    });
-}); 
-// DYNAMICZNY MANIFEST
+// JEDYNY manifest — ten zostaje
 app.get("/manifest.json", (req, res) => {
     console.log("=== MANIFEST HANDLER DZIAŁA ===");
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -57,6 +33,7 @@ app.get("/manifest.json", (req, res) => {
         }
     });
 });
+
 // TEST ROOT — sprawdzimy czy Express działa
 app.get("/", (req, res) => {
     res.send("EXPRESS DZIAŁA");
@@ -266,6 +243,3 @@ app.get("/:resource/:type/:id/:extra", (req, res) => {
 // START SERWERA
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Addon + panel config działa na porcie", PORT));
-app.get("/test", (req, res) => {
-    res.send("EXPRESS DZIAŁA");
-});
