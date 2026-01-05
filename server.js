@@ -8,6 +8,15 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
+// TEST MANIFEST
+app.get("/manifest.json", (req, res) => {
+    console.log("=== TEST MANIFEST DZIAŁA ===");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json({
+        test: "manifest działa",
+        time: Date.now()
+    });
+});
 // DYNAMICZNY MANIFEST
 app.get("/manifest.json", (req, res) => {
     console.log("=== MANIFEST HANDLER DZIAŁA ===");
