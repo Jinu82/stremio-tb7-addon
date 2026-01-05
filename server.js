@@ -44,6 +44,13 @@ app.get("/manifest.json", (req, res) => {
     });
 });
 
+// ENDPOINT KATALOGU — wymagany, aby Stremio pokazało „Zainstaluj”
+app.get("/catalog/movie/tb7-movies.json", (req, res) => {
+    res.json({
+        metas: [] // pusty katalog, ale wystarczy do instalacji
+    });
+});
+
 // TEST ROOT
 app.get("/", (req, res) => {
     res.send("EXPRESS DZIAŁA");
