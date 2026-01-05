@@ -8,7 +8,7 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// JEDYNY manifest — ten zostaje
+// JEDYNY manifest — poprawny, z katalogiem
 app.get("/manifest.json", (req, res) => {
     console.log("=== MANIFEST HANDLER DZIAŁA ===");
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -26,14 +26,16 @@ app.get("/manifest.json", (req, res) => {
         ],
         types: ["movie", "series"],
         idPrefixes: ["tt"],
+
+        // KATALOG — to sprawia, że pojawia się przycisk „Zainstaluj”
         catalogs: [
-    {
-        type: "movie",
-        id: "tb7-movies",
-        name: "TB7 Movies"
-    }
-], 
-        
+            {
+                type: "movie",
+                id: "tb7-movies",
+                name: "TB7 Movies"
+            }
+        ],
+
         behaviorHints: {
             configurable: true,
             configurationRequired: true
@@ -125,7 +127,13 @@ const builder = new addonBuilder({
     resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
-    catalogs: []
+    catalogs: [
+        {
+            type: "movie",
+            id: "tb7-movies",
+            name: "TB7 Movies"
+        }
+    ]
 });
 
 // HANDLER STREAMÓW Z DEBUG LOGAMI
