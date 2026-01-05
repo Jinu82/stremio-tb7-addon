@@ -8,7 +8,7 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// JEDYNY manifest — poprawny, z katalogiem
+// JEDYNY manifest — poprawny, z katalogiem i extraSupported
 app.get("/manifest.json", (req, res) => {
     console.log("=== MANIFEST HANDLER DZIAŁA ===");
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -27,12 +27,13 @@ app.get("/manifest.json", (req, res) => {
         types: ["movie", "series"],
         idPrefixes: ["tt"],
 
-        // KATALOG — to sprawia, że pojawia się przycisk „Zainstaluj”
+        // KATALOG — teraz pełny, instalowalny
         catalogs: [
             {
                 type: "movie",
                 id: "tb7-movies",
-                name: "TB7 Movies"
+                name: "TB7 Movies",
+                extraSupported: ["search"]
             }
         ],
 
@@ -43,7 +44,7 @@ app.get("/manifest.json", (req, res) => {
     });
 });
 
-// TEST ROOT — sprawdzimy czy Express działa
+// TEST ROOT
 app.get("/", (req, res) => {
     res.send("EXPRESS DZIAŁA");
 });
@@ -53,7 +54,7 @@ app.get("/logo.png", (req, res) => {
     res.sendFile(path.join(__dirname, "logo.png"));
 });
 
-// Stremio otwiera /configure → przekierowanie
+// /configure → /config
 app.get("/configure", (req, res) => {
     res.redirect("/config");
 });
@@ -131,12 +132,13 @@ const builder = new addonBuilder({
         {
             type: "movie",
             id: "tb7-movies",
-            name: "TB7 Movies"
+            name: "TB7 Movies",
+            extraSupported: ["search"]
         }
     ]
 });
 
-// HANDLER STREAMÓW Z DEBUG LOGAMI
+// STREAM HANDLER
 builder.defineStreamHandler(async (args, req) => {
     console.log("=== STREAM HANDLER START ===");
     console.log("Args:", JSON.stringify(args, null, 2));
