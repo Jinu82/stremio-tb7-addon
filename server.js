@@ -1,3 +1,8 @@
+
+app.get("/", (req, res) => {
+    res.send("EXPRESS DZIAŁA");
+});
+
 const express = require("express");
 const { addonBuilder } = require("stremio-addon-sdk");
 const axios = require("axios");
