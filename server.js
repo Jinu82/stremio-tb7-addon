@@ -1,8 +1,3 @@
-
-app.get("/", (req, res) => {
-    res.send("EXPRESS DZIAŁA");
-});
-
 const express = require("express");
 const { addonBuilder } = require("stremio-addon-sdk");
 const axios = require("axios");
@@ -12,6 +7,11 @@ const path = require("path");
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
+
+// TEST ROOT — sprawdzimy czy Express działa
+app.get("/", (req, res) => {
+    res.send("EXPRESS DZIAŁA");
+});
 
 // DYNAMICZNY MANIFEST – Railway nie może go nadpisać
 app.get("/manifest.json", (req, res) => {
