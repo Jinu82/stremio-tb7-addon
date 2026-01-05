@@ -8,7 +8,7 @@ const path = require("path");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-// ===== CORS — wymagane przez Stremio, aby pokazać "Zainstaluj" =====
+// ===== CORS — wymagane przez Stremio =====
 app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "*");
@@ -26,6 +26,9 @@ app.get("/manifest.json", (req, res) => {
         description: "Dodatek Stremio korzystający z TB7 z możliwością konfiguracji użytkownika.",
         logo: "https://stremio-tb7-addon-production.up.railway.app/logo.png",
 
+        // <<< WPISZ TU SWÓJ EMAIL >>>
+        contactEmail: "jinu82games@gmail.com",
+
         resources: [
             {
                 name: "stream",
@@ -36,7 +39,6 @@ app.get("/manifest.json", (req, res) => {
         types: ["movie", "series"],
         idPrefixes: ["tt"],
 
-        // ===== KATALOG (wymagany, aby addon był instalowalny) =====
         catalogs: [
             {
                 type: "movie",
@@ -53,11 +55,11 @@ app.get("/manifest.json", (req, res) => {
     });
 });
 
-// ===== ENDPOINT KATALOGU (wymagany, aby Stremio pokazało "Zainstaluj") =====
+// ===== ENDPOINT KATALOGU =====
 app.get("/catalog/movie/tb7-movies.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.json({
-        metas: [] // pusty katalog — wystarczy, aby addon był instalowalny
+        metas: []
     });
 });
 
