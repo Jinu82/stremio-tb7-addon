@@ -26,7 +26,14 @@ app.get("/manifest.json", (req, res) => {
         ],
         types: ["movie", "series"],
         idPrefixes: ["tt"],
-        catalogs: [],
+        catalogs: [
+    {
+        type: "movie",
+        id: "tb7-movies",
+        name: "TB7 Movies"
+    }
+], 
+        
         behaviorHints: {
             configurable: true,
             configurationRequired: true
